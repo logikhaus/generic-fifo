@@ -1,0 +1,34 @@
+/* Description
+	Tester entity.
+	
+	@designer(s):
+	-	Daniel C.K. Kho	|	daniel.kho (at) tauhop [dot] com
+		
+	@license: Tauhop Solutions License Agreement.
+	
+	Copyright© Tauhop Solutions 2010-2016. All Rights Reserved.
+	
+	Your use of Tauhop Solution's Intellectual Property, including, without 
+	limitation, design tools, hardware design source files, schematics, software 
+	source code, scripts, and other software and tools, and its partners' 
+	Intellectual Property, and any output files of the foregoing, and any 
+	associated documentation or information, are expressly subject to the terms 
+	and conditions of the Tauhop Solutions License Agreement, or other 
+	applicable license agreement. Please refer to the applicable agreement for 
+	further details.
+	
+	Revision History: @see Mercurial log for full list of changes.
+	
+	This notice and disclaimer must be retained as part of this text at all times.
+*/
+library ieee; use ieee.std_logic_1164.all, ieee.numeric_std.all, ieee.math_real.all, ieee.float_pkg.all;
+--library tauhop; use tauhop.axiTransactor.all, tauhop.spiTransactor.all, tauhop.fsm.all;
+
+/* TODO remove once generic packages are supported. */
+--library tauhop; use tauhop.tlm.all, tauhop.axiTLM.all;
+
+/* synthesis translate_off */
+--library osvvm; use osvvm.RandomPkg.all, osvvm.CoveragePkg.all;
+
+entity tester is end entity tester;
+/* synthesis translate_on */

@@ -1,0 +1,244 @@
+/*
+	This file is part of the Memories project:
+		http://www.opencores.org/project,wb_fifo
+		
+	Description
+	Testbench for generic FIFO project.
+	
+	To Do: 
+	
+	Author(s): 
+	- Daniel C.K. Kho, daniel.kho@opencores.org | daniel.kho@tauhop.com
+	
+	Copyright (C) 2012-2013 Authors and OPENCORES.ORG
+	
+	This source file may be used and distributed without 
+	restriction provided that this copyright statement is not 
+	removed from the file and that any derivative work contains 
+	the original copyright notice and the associated disclaimer.
+	
+	This source file is free software; you can redistribute it 
+	and/or modify it under the terms of the GNU Lesser General 
+	Public License as published by the Free Software Foundation; 
+	either version 2.1 of the License, or (at your option) any 
+	later version.
+	
+	This source is distributed in the hope that it will be 
+	useful, but WITHOUT ANY WARRANTY; without even the implied 
+	warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR 
+	PURPOSE. See the GNU Lesser General Public License for more 
+	details.
+	
+	You should have received a copy of the GNU Lesser General 
+	Public License along with this source; if not, download it 
+	from http://www.opencores.org/lgpl.shtml.
+*/
+library ieee;			use ieee.std_logic_1164.all, ieee.numeric_std.all;
+
+library tauhop;			use --tauhop.attributes.all,
+							tauhop.fifoTransactor.all;
+							--tauhop.clocksTLM.all;
+							
+/* synthesis translate_off */
+library osvvm;			use osvvm.RandomPkg.all, osvvm.CoveragePkg.all;
+/* synthesis translate_on */
+
+
+architecture fifo of tester is
+	constant	memoryDepth:	positive := 64;
+	
+	/* synthesis translate_off */
+	signal		clk,
+				readClk,
+				writeClk:		std_ulogic := '0';
+				
+	signal		reset:			std_ulogic := '0';
+	--signal		clocks:			t_clocks;
+	
+	attribute	period:	time;
+	attribute	period of	clk:		signal is 30 ps;
+	attribute	period of	readClk:	signal is 10 ps;
+	attribute	period of	writeClk:	signal is 20 ps;
+	/* synthesis translate_on */
+	
+	/* BFM signalling. */
+	signal	fifoInterface:		t_fifoTransactor;
+	
+	/* Coverage-driven randomisation. */
+	/* synthesis translate_off */
+	shared	variable rv0:		covPType;
+	/* synthesis translate_on */
+	signal	rv:					integer;
+	signal	pctCovered:			real;
+	signal	isCovered,
+			i_isCovered:		boolean;
+begin
+	duv: entity tauhop.fifo(rtl)
+		generic map(memoryDepth	=> memoryDepth)
+		port map(
+			reset			=> reset,
+			--clocks			=> clocks,
+			clk				=> clk,
+			fifoInterface	=> fifoInterface
+		);
+	
+	/* synthesis translate_off */
+	u_clocks: block is begin
+		process is begin
+			clk			<= '0';
+			loop
+				wait for clk'period / 2;
+				clk		<= not clk;
+			end loop;
+		end process;
+		
+		process is begin
+			readClk		<= '0';
+			loop
+				wait for readClk'period / 2;
+				readClk	<= not readClk;
+			end loop;
+		end process;
+		
+		process is begin
+			writeClk		<= '0';
+			loop
+				wait for writeClk'period / 2;
+				writeClk	<= not writeClk;
+			end loop;
+		end process;
+		
+		--clocks.clk		<= clk;
+		--clocks.rdClk	<= readClk;
+		--clocks.wrClk	<= writeClk;
+	end block u_clocks;
+	
+	process is begin
+		reset	<= '1';
+		wait for 30 ps;
+		
+		reset	<= '0';
+		wait until falling_edge(clk);
+		
+		wait for memoryDepth * clk'period;
+		wait;
+	end process;
+	/* synthesis translate_on */
+	
+	/* Write operation. */
+	process(reset, writeClk) is
+		/* Local procedures to map BFM signals with the package procedure. */
+		procedure write(data: in i_fifoTransactor.t_data) is begin
+			i_fifoTransactor.write(request => fifoInterface.writeRequest, address => (others => '-'), data => data);
+		end procedure write;
+		
+		variable cnt:	u_unsigned(7 downto 0);
+	begin
+		if reset then
+			/* synthesis translate_off */
+			rv									<= rv0.randCovPoint;
+			rv0.iCover(rv);
+			/* synthesis translate_on */
+			fifoInterface.writeRequest.trigger	<= '0';
+			
+			cnt									:= (others=>'0');
+		elsif rising_edge(writeClk) then
+			/* synthesis translate_off */
+			if reset then
+				rv	<= rv0.randCovPoint;
+				rv0.iCover(rv);
+			end if;
+			/* synthesis translate_on */
+			
+			if not isCovered then
+				/* Pseudorandom stimuli generation using OS-VVM. */
+				/* synthesis translate_off */
+				rv	<= rv0.randCovPoint;
+				rv0.iCover(rv);
+				/* synthesis translate_on */
+				
+				if cnt < x"a8" then
+					--write(std_ulogic_vector(to_unsigned(rv, fifoInterface.writeRequest.data'length)));
+					write(to_unsigned(rv, fifoInterface.writeRequest.data'length));
+				end if;
+				
+				/* Pseudorandom stimuli generation using LFSR. */
+				/*
+				case selTxn is
+					when x"1"=> write(32x"12ab34cd");
+					when x"2"=> write(32x"12345678");
+					when x"3"=> write(32x"87654321");
+					when x"4"=> write(32x"abcd1234");
+					when others=> write(prbs);
+				end case;
+				*/
+			end if;
+			
+			cnt		:= cnt + 1;
+		end if;
+	end process;
+	
+	/* Read operation. */
+	process(reset, readClk) is
+		/* Local procedures to map BFM signals with the package procedure. */
+        procedure read is begin
+            i_fifoTransactor.read(request => fifoInterface.readRequest, address => (others => '-'));
+        end procedure read;
+		
+		variable cnt:	u_unsigned(7 downto 0);
+	begin
+		if reset then
+			fifoInterface.readRequest.trigger	<= '0';
+			
+			cnt									:= (others => '0');
+		elsif falling_edge(readClk) then
+			if not isCovered then
+				if cnt >= x"a8" then
+					read;
+				end if;
+			end if;
+			
+			cnt		:= cnt + 1;
+		end if;
+	end process;
+	
+	/* simulation only. */
+	/* synthesis translate_off */
+	coverageMonitor: process is
+		procedure initialise is begin
+			rv0.deallocate;			--destroy rv0 and all bins.
+			rv0.initSeed(rv0'instance_name);
+		end procedure initialise;
+		
+	begin
+		/* Fast- and normal-reads. */
+		for i in 0 to 1 loop
+			initialise;
+			rv0.addBins(genBin(integer'low, integer'high, 512));
+			
+			wait until isCovered;
+--			rv0.writeBin;
+			rv0.setCovZero;		-- reset all coverage counts to zero.
+		end loop;
+		
+		/* One-shot read. */
+		initialise;
+		rv0.addBins(genBin(integer'low, integer'high, 1));
+		
+		wait until isCovered;
+--		rv0.writeBin;
+		rv0.setCovZero;
+		
+        wait for 500 ps;
+        std.env.stop;
+    end process coverageMonitor;
+	
+	process(clk) is begin
+		if falling_edge(clk) then
+			pctCovered	<= rv0.getCov;
+			isCovered	<= rv0.isCovered;
+			i_isCovered	<= isCovered;
+		end if;
+	end process;
+	/* synthesis translate_on */
+end architecture fifo;
